@@ -1,0 +1,55 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup>
+    <CudaCompile Include="kernel.cu" />
+    <CudaCompile Include="basicos.cu">
+      <Filter>FuncionesCUDA</Filter>
+    </CudaCompile>
+    <CudaCompile Include="RedNeuronalSecuencial.cu">
+      <Filter>Clases\RedesNeuronales\RedNeuronalSecuencial</Filter>
+    </CudaCompile>
+    <CudaCompile Include="GestorPunteroPunteroFloatDevice.cu">
+      <Filter>Clases\GestoresPunteros\GestorPunteroPunteroFloatDevice</Filter>
+    </CudaCompile>
+    <CudaCompile Include="GestorPunteroPunteroFloatHost.cu">
+      <Filter>Clases\GestoresPunteros\GestorPunteroPunteroFloatHost</Filter>
+    </CudaCompile>
+  </ItemGroup>
+  <ItemGroup>
+    <Filter Include="FuncionesCUDA">
+      <UniqueIdentifier>{61e46d9b-7884-41e9-a263-bc469258445d}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Clases">
+      <UniqueIdentifier>{2b3e6688-7873-4ba5-adb0-08fa464b079e}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Clases\RedesNeuronales">
+      <UniqueIdentifier>{8fc1903f-dcc0-40a5-af10-904dcfcbeb7d}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Clases\RedesNeuronales\RedNeuronalSecuencial">
+      <UniqueIdentifier>{dd0a5f8a-9383-43af-87c0-d4f29f34892b}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Clases\GestoresPunteros">
+      <UniqueIdentifier>{04df5728-0c99-4548-8649-a770b3ad1691}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Clases\GestoresPunteros\GestorPunteroPunteroFloatDevice">
+      <UniqueIdentifier>{e6b70efe-641e-4362-ac87-f9f5be6ef487}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Clases\GestoresPunteros\GestorPunteroPunteroFloatHost">
+      <UniqueIdentifier>{02532cdf-c0fd-43fd-a819-e560c8b428a4}</UniqueIdentifier>
+    </Filter>
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="basicos.cuh">
+      <Filter>FuncionesCUDA</Filter>
+    </ClInclude>
+    <ClInclude Include="RedNeuronalSecuencial.cuh">
+      <Filter>Clases\RedesNeuronales\RedNeuronalSecuencial</Filter>
+    </ClInclude>
+    <ClInclude Include="GestorPunteroPunteroFloatDevice.cuh">
+      <Filter>Clases\GestoresPunteros\GestorPunteroPunteroFloatDevice</Filter>
+    </ClInclude>
+    <ClInclude Include="GestorPunteroPunteroFloatHost.cuh">
+      <Filter>Clases\GestoresPunteros\GestorPunteroPunteroFloatHost</Filter>
+    </ClInclude>
+  </ItemGroup>
+</Project>
