@@ -49,4 +49,4 @@ __global__ void multiplicarAMatrizAMatrizB(float* a, float* b, int nrows, int nc
 //m-> [ [ m[i][j]*x for j = numero_columnas(m) ] for i = numero_filas(m) ]
 __global__ void multiplicarCadaElementoMatriz(float* m, float x, int nrows, int ncols);
 
-__global__ void sumarACadaElementoVectorColumnaMatriz(float* m, float* v, int nrows, int ncols);
+__global__ void sumarACadaElementoVectorColumnaMatriz(const float* matrix, float* columnSums, int numRows, int numCols);

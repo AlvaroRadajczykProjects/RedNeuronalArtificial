@@ -205,7 +205,7 @@ __global__ void multiplicarCadaElementoMatriz(float* m, float x, int nrows, int 
     }
 }
 
-__global__ void sumarACadaElementoVectorColumnaMatriz(float* m, float* v, int nrows, int ncols)
+/*__global__ void sumarACadaElementoVectorColumnaMatriz(float* m, float* v, int nrows, int ncols)
 {
     int idx = blockIdx.x * blockDim.x + threadIdx.x;
     int idy = blockIdx.y * blockDim.y + threadIdx.y;
@@ -213,5 +213,37 @@ __global__ void sumarACadaElementoVectorColumnaMatriz(float* m, float* v, int nr
     if (idx < nrows && idy < ncols) {
         atomicAdd(&v[idy], m[idx * ncols + idy]);
     }
+
+}*/
+
+__global__ void sumarACadaElementoVectorColumnaMatriz(const float* matrix, float* columnSums, int numRows, int numCols) {
+
+    __shared__ float sharedMemory[32][32];
+
+    int idx = blockIdx.x * blockDim.x + threadIdx.x;
+    int idy = blockIdx.y * blockDim.y + threadIdx.y;
+
+    if (idx < numRows && idy < numCols) {
+        sharedMemory[threadIdx.x][threadIdx.y] = matrix[idx * numCols + idy];
+    }
+    else {
+        sharedMemory[threadIdx.x][threadIdx.y] = 0.0;
+    }
+
+    __syncthreads();
+
+    int cnt = 2;
+    for (int i = 32; i > 1; i = (int)(i / 2)) {
+        if ((threadIdx.x + 1) % cnt == 0) {
+            sharedMemory[threadIdx.x][threadIdx.y] += sharedMemory[threadIdx.x - (cnt / 2)][threadIdx.y];
+        }
+        cnt = cnt * 2;
+        __syncthreads();
+    }
+
+    if (idy < numCols && threadIdx.x == 31) {
+        atomicAdd(&columnSums[idy], sharedMemory[threadIdx.x][threadIdx.y]);
+    }
+    __syncthreads();
 
 }
