@@ -3,8 +3,14 @@
 #include <math.h>
 #include <time.h>
 
+#include <windows.h>
+#include <iostream>
+#include <string.h>
+
 #include "GestorPunteroPunteroFloatHost.cuh"
 #include "GestorPunteroPunteroFloatDevice.cuh"
+
+#include "funciones_archivos.h"
 
 void imprimirVectorIntPorPantalla(char* texto_mostrar, float vector[], int inicio, int fin);
 void imprimirMatrizPorPantalla(char* texto_mostrar, float matriz[], int n_filas, int n_columnas);
@@ -17,11 +23,6 @@ class RedNeuronalSecuencial {
 		int numero_capas;
 		int* dimensiones_capas = NULL;
 		int* funciones_capas = NULL;
-
-		//red en host, se guardan los vectores de bias y las matrices de pesos, por tanto no se guarda la capa de entrada
-		//así esta clase se puede serializar
-		float** host_bias_vectors = NULL;
-		float** host_weight_matrices = NULL;
 
 		//red en device, se guardan los vectores de bias y las matrices de pesos, por tanto no se guarda la capa de entrada
 		//ojo, si se quiere serializar esta clase, hay que eliminar bien todito
@@ -54,15 +55,16 @@ class RedNeuronalSecuencial {
 		void aplicarVectorGradienteSGD(float tapren, int batch_size);
 		void propagacionHaciaDelanteEntrenamiento(int nejemplos, int nvalsentrada, float* matrizejemplos);
 		void cargarEnDevice(bool iniciarValoresBiasesWeights);
+		void copiarPesosHostDevice(float** host_pesos, float** host_biases);
 
 	public:
 		RedNeuronalSecuencial(int nc, int* dc, int* fc);
+		RedNeuronalSecuencial(const char* nombre_archivo);
 		~RedNeuronalSecuencial();
 		int getNumeroCapas();
 		int* getDimensionesCapas();
 		int* getFuncionesCapas();
-		void serializarRedNeuronal(const char* nombre_archivo, bool restablecer_red_device);
-		void copiarPesosHostDevice(float** host_pesos, float** host_biases);
+		void exportarRedComoArchivo(const char* nombre_archivo);
 		float* propagacionHaciaDelante(int nejemplos, int nvalsentrada, float* matrizejemplos);
 		void entrenarRedMSE_SGD(float tapren, int nepocas, int nejemplos, int batch_size, int nvalsentrada, int nvalssalida, float* ventrada, float *vsalida);
 		

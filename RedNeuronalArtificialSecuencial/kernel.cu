@@ -7,30 +7,83 @@
 #include <curand.h>
 #include <curand_kernel.h>
 
-#include <iostream>
-
-#include <windows.h>
-
 using namespace std;
 
 int main()
 {
     srand(time(NULL));
 
-    float** weights = new float* [2] { new float[4] {-6.167499407984588, -4.607113545803228, -6.215967356057629, -4.616921683516318}, new float[2] {-9.475190768811604, 9.26662990483002} };
-    float** biases = new float* [2] { new float[2] {2.48990533590185, 6.857492627195812}, new float[1] {-4.361658270629812} };
+    /*
+    RedNeuronalSecuencial* r = new RedNeuronalSecuencial(4, new int[4] { 1024, 64, 64, 1024 }, new int[3] {3, 3, 3});
+
+    float* de = new float[1024];
+    float* ds = new float[1024];
+
+    r->entrenarRedMSE_SGD(0.03, 10000, 1, 1, 1024, 1024, de, ds);
+    float* res = r->propagacionHaciaDelante(1, 1024, de);
+    imprimirMatrizPorPantalla("", res, 1, 1024);
+    delete res;
+
+    r->exportarRedComoArchivo("caca.data");
+
+    delete r;
+
+    printf("\n\ncargo el archivo:\n");
+
+    r = new RedNeuronalSecuencial("caca.data");
+
+    res = r->propagacionHaciaDelante(1, 1024, de);
+    imprimirMatrizPorPantalla("", res, 1, 1024);
+    delete res;
+    delete r;
+    */
+
+    /*
+    RedNeuronalSecuencial* r = new RedNeuronalSecuencial("caca.data");
+
+    float* de = new float[1024];
+    float* ds = new float[1024];
+
+    float* res = r->propagacionHaciaDelante(1, 1024, de);
+    imprimirMatrizPorPantalla("", res, 1, 1024);
+    delete res;
+    delete r;
+    */
+
+    RedNeuronalSecuencial* r = new RedNeuronalSecuencial(4, new int[4] { 2, 10, 10, 1 }, new int[3] {3, 3, 3});
+
     float* de = new float[8] { 0, 0, 0, 1, 1, 0, 1, 1 };
     float* ds = new float[4] { 1, 0, 0, 1 };
 
-    //for (int i = 0; i < 300; i++) {
-        RedNeuronalSecuencial* r = new RedNeuronalSecuencial(7, new int[7] { 2, 10, 33, 65, 33, 10, 1 }, NULL);
-        //r->copiarPesosHostDevice(weights, biases);
-        r->entrenarRedMSE_SGD(0.3, 10000, 4, 4, 2, 1, de, ds);
-        float* res = r->propagacionHaciaDelante(4, 2, de);
-        imprimirMatrizPorPantalla("", res, 4, 1);
-        delete res;
-        delete r;
-    //}
+    r->entrenarRedMSE_SGD(0.03, 10000, 4, 4, 2, 1, de, ds);
+    float* res = r->propagacionHaciaDelante(4, 2, de);
+    imprimirMatrizPorPantalla("", res, 4, 1);
+    delete res;
+
+    r->exportarRedComoArchivo("caca.data");
+
+    delete r;
+
+    printf("\n\ncargo el archivo:\n");
+
+    r = new RedNeuronalSecuencial("caca.data");
+
+    res = r->propagacionHaciaDelante(4, 2, de);
+    imprimirMatrizPorPantalla("", res, 4, 1);
+    delete res;
+    delete r;
+
+    /*
+    RedNeuronalSecuencial* r = new RedNeuronalSecuencial("caca.data");
+
+    float* de = new float[8] { 0, 0, 0, 1, 1, 0, 1, 1 };
+    float* ds = new float[4] { 1, 0, 0, 1 };
+
+    float* res = r->propagacionHaciaDelante(4, 2, de);
+    imprimirMatrizPorPantalla("", res, 4, 1);
+    delete res;
+    delete r;
+    */
 
     return 0;
 }

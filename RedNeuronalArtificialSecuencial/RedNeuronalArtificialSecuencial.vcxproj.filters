@@ -51,5 +51,9 @@
     <ClInclude Include="GestorPunteroPunteroFloatHost.cuh">
       <Filter>Clases\GestoresPunteros\GestorPunteroPunteroFloatHost</Filter>
     </ClInclude>
+    <ClInclude Include="funciones_archivos.h" />
+  </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="funciones_archivos.cpp" />
   </ItemGroup>
 </Project>

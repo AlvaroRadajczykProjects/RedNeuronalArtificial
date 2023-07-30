@@ -11,9 +11,9 @@ GestorPunteroPunteroFloatDevice::GestorPunteroPunteroFloatDevice(int ne, int* de
 		manageCUDAError(cudaMalloc(&hd_p[i], dimensiones_elementos[i] * sizeof(float)));
 	}
 
-	//manageCUDAError(cudaMemcpy(d_p, hd_p, numero_elementos * sizeof(float*), cudaMemcpyHostToDevice));
+	manageCUDAError(cudaMemcpy(d_p, hd_p, numero_elementos * sizeof(float*), cudaMemcpyHostToDevice));
 
-	//manageCUDAError(cudaDeviceSynchronize());
+	manageCUDAError(cudaDeviceSynchronize());
 }
 
 GestorPunteroPunteroFloatDevice::~GestorPunteroPunteroFloatDevice() {
@@ -46,6 +46,7 @@ float** GestorPunteroPunteroFloatDevice::getPunteroPunteroHostDevice() {
 }
 
 void GestorPunteroPunteroFloatDevice::copiarHostADevice(float** h_p) {
+
 	for (int i = 0; i < numero_elementos; i++) {
 		manageCUDAError(cudaMemcpy(hd_p[i], h_p[i], dimensiones_elementos[i] * sizeof(float), cudaMemcpyHostToDevice));
 	}

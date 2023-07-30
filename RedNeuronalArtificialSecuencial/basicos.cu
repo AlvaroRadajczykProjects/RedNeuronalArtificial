@@ -25,7 +25,7 @@ void generarNumerosAleatoriosEnDistribucionNormal(curandGenerator_t curandGenera
 //FORWARD
 
 // A* B = C, A = MxN, B = NxP, C = MxP
-__global__ void productoMatrices(float* A, float* B, float* C, int M, int N, int P) {
+__global__ void productoMatrices(const float* A, const float* B, float* C, int M, int N, int P) {
 
     // Shared memory for the tiles of matrices A and B
     __shared__ float tileA[32][32];
@@ -111,6 +111,36 @@ __global__ void aplicarFuncionSigmoideCadaElementoMatriz(float* zl, float* al, i
     }
 }
 
+__global__ void aplicarFuncionTahnCadaElementoMatriz(float* zl, float* al, int nrows, int ncols)
+{
+    int idx = blockIdx.x * blockDim.x + threadIdx.x;
+    int idy = blockIdx.y * blockDim.y + threadIdx.y;
+
+    if (idx < nrows && idy < ncols) {
+        al[idx * ncols + idy] = (expf(zl[idx * ncols + idy]) - expf(-zl[idx * ncols + idy])) / (expf(zl[idx * ncols + idy]) + expf(-zl[idx * ncols + idy]));
+    }
+}
+
+__global__ void aplicarFuncionCosenoEspecialCadaElementoMatriz(float* zl, float* al, int nrows, int ncols)
+{
+    int idx = blockIdx.x * blockDim.x + threadIdx.x;
+    int idy = blockIdx.y * blockDim.y + threadIdx.y;
+
+    if (idx < nrows && idy < ncols) {
+        al[idx * ncols + idy] = zl[idx * ncols + idy] * cosf(zl[idx * ncols + idy]);
+    }
+}
+
+__global__ void aplicarFuncionPReluCadaElementoMatriz(float* zl, float* al, int nrows, int ncols)
+{
+    int idx = blockIdx.x * blockDim.x + threadIdx.x;
+    int idy = blockIdx.y * blockDim.y + threadIdx.y;
+
+    if (idx < nrows && idy < ncols) {
+        al[idx * ncols + idy] = zl[idx * ncols + idy] >= 0 ? zl[idx * ncols + idy] : zl[idx * ncols + idy]*0.01;
+    }
+}
+
 //ERROR CAPA OUTPUT
 
 __global__ void aplicarDerivadaFuncionPerdidaMSECadaElementoPredY(int batch_size, int nvalssalida, float* pred_y, float* real_y) {
@@ -122,7 +152,7 @@ __global__ void aplicarDerivadaFuncionPerdidaMSECadaElementoPredY(int batch_size
     }
 }
 
-__global__ void aplicarFuncionCosteMSE(int batch_size, int nvalssalida, float* pred_y, float* real_y, float* res) {
+__global__ void aplicarFuncionCosteMSE(int batch_size, int nvalssalida, const float* pred_y, const float* real_y, float* res) {
     int idx = blockIdx.x * blockDim.x + threadIdx.x;
     int idy = blockIdx.y * blockDim.y + threadIdx.y;
 
@@ -146,6 +176,36 @@ __global__ void aplicarDerivadaFuncionSigmoideCadaElementoMatriz(float* m, int n
     }
 }
 
+__global__ void aplicarDerivadaFuncionTahnCadaElementoMatriz(float* m, int nrows, int ncols)
+{
+    int idx = blockIdx.x * blockDim.x + threadIdx.x;
+    int idy = blockIdx.y * blockDim.y + threadIdx.y;
+
+    if (idx < nrows && idy < ncols) {
+        float res = (expf(m[idx * ncols + idy]) - expf(-m[idx * ncols + idy])) / (expf(m[idx * ncols + idy]) + expf(-m[idx * ncols + idy]));
+        m[idx * ncols + idy] = 1 - res * res;
+    }
+}
+
+__global__ void aplicarDerivadaFuncionCosenoEspecialCadaElementoMatriz(float* m, int nrows, int ncols)
+{
+    int idx = blockIdx.x * blockDim.x + threadIdx.x;
+    int idy = blockIdx.y * blockDim.y + threadIdx.y;
+
+    if (idx < nrows && idy < ncols) {
+        m[idx * ncols + idy] = -1 * sinf(m[idx * ncols + idy]);
+    }
+}
+
+__global__ void aplicarDerivadaFuncionPReluCadaElementoMatriz(float* m, int nrows, int ncols)
+{
+    int idx = blockIdx.x * blockDim.x + threadIdx.x;
+    int idy = blockIdx.y * blockDim.y + threadIdx.y;
+
+    if (idx < nrows && idy < ncols) {
+        m[idx * ncols + idy] = m[idx * ncols + idy] >= 0 ? 1 : 0.01;
+    }
+}
 //T(idata) = odata
 __global__ void matrizTraspuesta(float* odata, float* idata, int nrows, int ncols)
 {
