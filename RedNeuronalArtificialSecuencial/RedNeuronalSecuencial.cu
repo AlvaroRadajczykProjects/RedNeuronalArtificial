@@ -116,37 +116,8 @@ RedNeuronalSecuencial::RedNeuronalSecuencial(const char* nombre_archivo) {
 		}
 	}
 
-	/*for (int i = 0; i < 159; i++) {
-		if (i < 8) { printf("\n%d -> %d", i, ((int*)array)[i]); }
-		else { printf("\n%d -> %f", i, ((float*)array)[i]); }
-	}*/
-
 	cargarEnDevice(false);
-
 	copiarPesosHostDevice(host_weight_matrices, host_bias_vectors);
-
-	/*
-	printf("\ndimensiones de capas: ");
-
-	for (int i = 0; i < numero_capas -1; i++) {
-		printf("%d, ", getCopiaDimensionesCapasRed()[i]);
-	}
-	printf("\n");
-
-	printf("\nfunciones de capas: ");
-
-	for (int i = 0; i < numero_capas - 1; i++) {
-		printf("%d, ", getCopiaDimensionesMatricesRed()[i]);
-	}
-	printf("\n");
-
-	for (int i = 0; i < numero_capas - 1; i++) {
-		printf("\nnivel %d\n", i);
-		imprimirMatrizPorPantalla( "bias", host_bias_vectors[i], 1, dimensiones_capas[i+1]);
-		imprimirMatrizPorPantalla("pesos", host_weight_matrices[i], dimensiones_capas[i], dimensiones_capas[i + 1]);
-	}
-	*/
-
 }
 
 RedNeuronalSecuencial::~RedNeuronalSecuencial() {
@@ -240,19 +211,6 @@ void RedNeuronalSecuencial::exportarRedComoArchivo(const char* nombre_archivo) {
 			offset += 1;
 		}
 	}
-
-	/*
-	for (int i = 0; i < numero_capas - 1; i++) {
-		printf("\nnivel %d\n", i);
-		imprimirMatrizPorPantalla("bias", host_bias_vectors[i], 1, dimensiones_capas[i + 1]);
-		imprimirMatrizPorPantalla("pesos", host_weight_matrices[i], dimensiones_capas[i], dimensiones_capas[i + 1]);
-	}
-	*/
-
-	/*for (int i = 0; i < 159; i++) {
-		if (i < 8) { printf("\n%d -> %d", i, ((int*)array)[i]); }
-		else { printf("\n%d -> %f", i, ((float*)array)[i]); }
-	}*/
 
 	char* buffer = (char*) array;
 
@@ -369,9 +327,7 @@ int* RedNeuronalSecuencial::getDimensionesZlAl(int batch_size) {
 	return dimensionesCapas;
 }
 
-void RedNeuronalSecuencial::calcularFuncionCosteMSE(int batch_size, int nvalsalida, float* vsalida) {
-
-	float* resultado = new float[1000];
+float RedNeuronalSecuencial::calcularFuncionCosteMSE(int batch_size, int nvalsalida, float* vsalida) {
 
 	if (nvalsalida == dimensiones_capas[numero_capas - 1]) {
 
@@ -402,19 +358,21 @@ void RedNeuronalSecuencial::calcularFuncionCosteMSE(int batch_size, int nvalsali
 		float res = 0.0;
 		for (int i = 0; i < nvalsalida; i++) { res += resultado[i]; }
 
-		printf("\nValor de la funcion de coste MSE: %.16f",res/(batch_size*nvalsalida));
+		//printf("\nValor de la funcion de coste MSE: %.16f",res/(batch_size*nvalsalida));
+
+		return res;
 
 	}
 
-	delete resultado;
+	return 0.0;
 }
 
 void RedNeuronalSecuencial::entrenarRedMSE_SGD(float tapren, int nepocas, int nejemplos, int batch_size, int nvalsentrada, int nvalsalida, float* ventrada, float* vsalida) {
 
-	if (nvalsentrada == dimensiones_capas[0] && nvalsalida == dimensiones_capas[numero_capas - 1]) {
+	int ins = batch_size * nvalsentrada * sizeof(float);
+	int os = batch_size * nvalsalida * sizeof(float);
 
-		int ins = batch_size * nvalsentrada * sizeof(float);
-		int os = batch_size * nvalsalida * sizeof(float);
+	if (nvalsentrada == dimensiones_capas[0] && nvalsalida == dimensiones_capas[numero_capas - 1]) {
 
 		cudaMalloc(&device_batch_input, ins);
 		cudaMalloc(&device_batch_output, os);
@@ -428,14 +386,45 @@ void RedNeuronalSecuencial::entrenarRedMSE_SGD(float tapren, int nepocas, int ne
 		//device_err_bias_v = NULL;
 		//device_err_weight_v = NULL;
 
+		for (int i = 0; i < nepocas; i++) {
+			float error = 0.0;
+			int nbatchs = (int)(nejemplos / batch_size);
+			int nrelems = nejemplos % batch_size;
+			for (int j = 0; j < nbatchs; j++) {
+				cudaMemcpy(device_batch_input, ventrada + (batch_size * nvalsentrada * j), ins, cudaMemcpyHostToDevice);
+				cudaMemcpy(device_batch_output, vsalida + (batch_size * nvalsalida * j), os, cudaMemcpyHostToDevice);
+				cudaDeviceSynchronize();
+				propagacionHaciaDelanteEntrenamiento(batch_size, nvalsentrada, ventrada + (batch_size * nvalsentrada * j));
+				error += calcularFuncionCosteMSE(batch_size, nvalsalida, vsalida + (batch_size * nvalsalida * j));
+				calcularErrorMSE_SGD(batch_size, nvalsalida, vsalida + (batch_size * nvalsalida * j));
+				aplicarVectorGradienteSGD(tapren, batch_size);
+			}
+			//aquí se hace con el resto
+			if (nrelems > 0) {
+				cudaMemcpy(device_batch_input, ventrada + (batch_size * nvalsentrada * nbatchs), nrelems * nvalsentrada * sizeof(float), cudaMemcpyHostToDevice);
+				cudaMemcpy(device_batch_output, vsalida + (batch_size * nvalsalida * nbatchs), nrelems * nvalsalida * sizeof(float), cudaMemcpyHostToDevice);
+				cudaDeviceSynchronize();
+				propagacionHaciaDelanteEntrenamiento(nrelems, nvalsentrada, ventrada + (batch_size * nvalsentrada * nbatchs));
+				error += calcularFuncionCosteMSE(nrelems, nvalsalida, vsalida + (batch_size * nvalsalida * nbatchs));
+				calcularErrorMSE_SGD(nrelems, nvalsalida, vsalida + (batch_size * nvalsalida * nbatchs));
+				aplicarVectorGradienteSGD(tapren, nrelems);
+			}
+			if ((i + 1) % 500 == 0) {
+				printf("\nError MSE: %.16f | Quedan %d epocas", (float)(error / ((float)(nejemplos * nvalsalida))), nepocas - i - 1);
+			}
+		}
+
+		/*
 		cudaMemcpy(device_batch_input, ventrada, ins, cudaMemcpyHostToDevice);
 		cudaMemcpy(device_batch_output, vsalida, os, cudaMemcpyHostToDevice);
 
+		
 		for (int i = 0; i < nepocas; i++) {
+			float error = 0.0;
 			propagacionHaciaDelanteEntrenamiento(batch_size, nvalsentrada, ventrada);
 			if ((i + 1) % 500 == 0) { 
-				calcularFuncionCosteMSE(batch_size, nvalsalida, vsalida); 
-				printf("\nQuedan %d epocas", nepocas-i-1 );
+				error += calcularFuncionCosteMSE(batch_size, nvalsalida, vsalida); 
+				printf("\nError MSE: %.16f | Quedan %d epocas", error/(float)(nejemplos*nvalsalida), nepocas - i - 1);
 			}
 			calcularErrorMSE_SGD(batch_size, nvalsalida, vsalida);
 			aplicarVectorGradienteSGD(tapren, batch_size);
@@ -443,6 +432,7 @@ void RedNeuronalSecuencial::entrenarRedMSE_SGD(float tapren, int nepocas, int ne
 		printf("\n\nValor final de la funcion de coste:");
 		propagacionHaciaDelanteEntrenamiento(batch_size, nvalsentrada, ventrada);
 		calcularFuncionCosteMSE(batch_size, nvalsalida, vsalida);
+		*/
 
 		if (device_batch_input != NULL) { cudaFree(device_batch_input); device_batch_input = NULL; }
 		if (device_batch_output != NULL) { cudaFree(device_batch_output); device_batch_output = NULL; }

@@ -50,7 +50,7 @@ class RedNeuronalSecuencial {
 		int* getCopiaDimensionesMatricesRed();
 		int getMaxTamMatrTempTrans(int batch_size);
 		int* getDimensionesZlAl(int batch_size);
-		void calcularFuncionCosteMSE(int batch_size, int nvalsalida, float* vsalida);
+		float calcularFuncionCosteMSE(int batch_size, int nvalsalida, float* vsalida);
 		void calcularErrorMSE_SGD(int batch_size, int nvalsalida, float* vsalida);
 		void aplicarVectorGradienteSGD(float tapren, int batch_size);
 		void propagacionHaciaDelanteEntrenamiento(int nejemplos, int nvalsentrada, float* matrizejemplos);
