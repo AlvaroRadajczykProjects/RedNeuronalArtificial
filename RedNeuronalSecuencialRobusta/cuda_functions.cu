@@ -1,17 +1,18 @@
-#include "basicos.cuh"
+#include "cuda_functions.cuh"
 
 void manageCUDAError(cudaError_t status) {
     if (status != cudaSuccess) {
         fprintf(stderr, "Error de CUDA: %s\n", cudaGetErrorString(status));
         exit(EXIT_FAILURE);
     }
+    cudaDeviceSynchronize();
 }
 
 curandGenerator_t crearGeneradorNumerosAleatoriosEnDistribucionNormal() {
     curandGenerator_t curandGenerator;
     curandCreateGenerator(&curandGenerator, CURAND_RNG_PSEUDO_MT19937);
     curandSetGeneratorOrdering(curandGenerator, CURAND_ORDERING_PSEUDO_BEST);
-    manageCUDAError(cudaDeviceSynchronize());
+    CUDA_CHECK_SYNC( cudaDeviceSynchronize() );
     return curandGenerator;
 }
 
@@ -19,7 +20,7 @@ void generarNumerosAleatoriosEnDistribucionNormal(curandGenerator_t curandGenera
     unsigned long long semilla = rand() % 10000;
     curandSetPseudoRandomGeneratorSeed(curandGenerator, semilla);
     curandGenerateNormal(curandGenerator, (float*)pointer, nelems, mean, sdev);
-    manageCUDAError(cudaDeviceSynchronize());
+    CUDA_CHECK_SYNC( cudaDeviceSynchronize() );
 }
 
 //FORWARD
@@ -118,8 +119,7 @@ __global__ void aplicarFuncionTahnCadaElementoMatriz(float* zl, float* al, int n
 
     if (idx < nrows && idy < ncols) {
         //al[idx * ncols + idy] = (expf(zl[idx * ncols + idy]) - expf(-zl[idx * ncols + idy])) / (expf(zl[idx * ncols + idy]) + expf(-zl[idx * ncols + idy]));
-        //al[idx * ncols + idy] = ( 2 / (1 + expf(-2*zl[idx * ncols + idy]) ) ) - 1;
-        al[idx * ncols + idy] = tanhf(zl[idx * ncols + idy]);
+        al[idx * ncols + idy] = tanhf(al[idx * ncols + idy]);
     }
 }
 
@@ -139,7 +139,8 @@ __global__ void aplicarFuncionPReluCadaElementoMatriz(float* zl, float* al, int 
     int idy = blockIdx.y * blockDim.y + threadIdx.y;
 
     if (idx < nrows && idy < ncols) {
-        al[idx * ncols + idy] = zl[idx * ncols + idy] >= 0 ? zl[idx * ncols + idy] : zl[idx * ncols + idy]*0.01;
+        if (zl[idx * ncols + idy] >= 0) { al[idx * ncols + idy] = zl[idx * ncols + idy]; }
+        else { al[idx * ncols + idy] = al[idx * ncols + idy] = 0.01 * zl[idx * ncols + idy]; }
     }
 }
 
@@ -160,7 +161,7 @@ __global__ void aplicarFuncionCosteMSE(int batch_size, int nvalssalida, const fl
 
     if (idx < batch_size && idy < nvalssalida) {
         float tempres = pred_y[idx * nvalssalida + idy] - real_y[idx * nvalssalida + idy];
-        res[idx * nvalssalida + idy] = tempres* tempres;
+        res[idx * nvalssalida + idy] = tempres * tempres;
     }
 }
 
@@ -186,9 +187,8 @@ __global__ void aplicarDerivadaFuncionTahnCadaElementoMatriz(float* m, int nrows
     if (idx < nrows && idy < ncols) {
         //float res = (expf(m[idx * ncols + idy]) - expf(-m[idx * ncols + idy])) / (expf(m[idx * ncols + idy]) + expf(-m[idx * ncols + idy]));
         //m[idx * ncols + idy] = 1 - res * res;
-        //m[idx * ncols + idy] = 4*expf(2 * m[idx * ncols + idy]) / powf(1 + expf(2 * m[idx * ncols + idy]), 2.0);
         float res = tanhf(m[idx * ncols + idy]);
-        m[idx * ncols + idy] = 1 - (res * res);
+        m[idx * ncols + idy] = 1 - res*res;
     }
 }
 
@@ -208,7 +208,8 @@ __global__ void aplicarDerivadaFuncionPReluCadaElementoMatriz(float* m, int nrow
     int idy = blockIdx.y * blockDim.y + threadIdx.y;
 
     if (idx < nrows && idy < ncols) {
-        m[idx * ncols + idy] = m[idx * ncols + idy] >= 0 ? 1 : 0.01;
+        if (m[idx * ncols + idy] >= 0) { m[idx * ncols + idy] = 1; }
+        else { m[idx * ncols + idy] = 0.01; }
     }
 }
 //T(idata) = odata
@@ -245,7 +246,7 @@ __global__ void sumarAMatrizAMatrizB(float* a, float* b, int nrows, int ncols) {
     int idy = blockIdx.y * blockDim.y + threadIdx.y;
 
     if (idx < nrows && idy < ncols) {
-        a[idx * ncols + idy] = a[idx * ncols + idy] + b[idx * ncols + idy];
+        a[idx * ncols + idy] += b[idx * ncols + idy];
     }
 }
 

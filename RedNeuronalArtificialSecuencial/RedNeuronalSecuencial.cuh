@@ -46,6 +46,14 @@ class RedNeuronalSecuencial {
 		GestorPunteroPunteroFloatDevice* device_err_bias_v = NULL;
 		GestorPunteroPunteroFloatDevice* device_err_weight_v = NULL;
 
+		//para el modo rápido
+		GestorPunteroPunteroFloatHost* host_bias_vectors;
+		GestorPunteroPunteroFloatHost* host_weight_matrices;
+
+		float** host_bias_vectors_fast;
+		float** host_weight_matrices_fast;
+		float* calc_matrix_fast;
+
 		int* getCopiaDimensionesCapasRed();
 		int* getCopiaDimensionesMatricesRed();
 		int getMaxTamMatrTempTrans(int batch_size);
@@ -60,12 +68,20 @@ class RedNeuronalSecuencial {
 	public:
 		RedNeuronalSecuencial(int nc, int* dc, int* fc);
 		RedNeuronalSecuencial(const char* nombre_archivo);
+		void cargarPunterosHostBiasesWeights(GestorPunteroPunteroFloatHost* biases, GestorPunteroPunteroFloatHost* weights);
 		~RedNeuronalSecuencial();
 		int getNumeroCapas();
 		int* getDimensionesCapas();
 		int* getFuncionesCapas();
 		void exportarRedComoArchivo(const char* nombre_archivo);
 		float* propagacionHaciaDelante(int nejemplos, int nvalsentrada, float* matrizejemplos);
-		void entrenarRedMSE_SGD(float tapren, int nepocas, int nejemplos, int batch_size, int nvalsentrada, int nvalssalida, float* ventrada, float *vsalida);
-		
+		void entrenarRedMSE_SGD(float tapren, int mostrar_fcoste_cada_n_epocas, int nepocas, int nejemplos, int batch_size, int nvalsentrada, int nvalssalida, float* ventrada, float* vsalida);
+
+		void iniciarModoPropagacionDelanteRapido();
+		const void propagacionDelanteRapido(const float* input, float* output);
+		void terminarModoPropagacionDelanteRapido();
+
+		void mostrarPesosBiasesRed();
+		void mostrarZlAl(int batch_size);
+
 };

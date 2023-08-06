@@ -1,0 +1,41 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup>
+    <CudaCompile Include="kernel.cu" />
+    <CudaCompile Include="MatrizDevice.cu">
+      <Filter>Clases\MatrizDevice</Filter>
+    </CudaCompile>
+    <CudaCompile Include="cuda_functions.cu">
+      <Filter>FuncionesCUDA</Filter>
+    </CudaCompile>
+    <CudaCompile Include="RedNeuronalSecuencialRobusta.cu">
+      <Filter>Clases\RedNeuronalSecuencialRobusta</Filter>
+    </CudaCompile>
+    <CudaCompile Include="prueba_precision.cu" />
+  </ItemGroup>
+  <ItemGroup>
+    <Filter Include="Clases">
+      <UniqueIdentifier>{1bd50c5b-ff16-4f17-9a9e-2fff5e1c1632}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Clases\MatrizDevice">
+      <UniqueIdentifier>{1fbef730-bd1c-4f82-880d-04ac9077cd4d}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="FuncionesCUDA">
+      <UniqueIdentifier>{cdfc316b-35b1-44b0-8237-e23d55102f11}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Clases\RedNeuronalSecuencialRobusta">
+      <UniqueIdentifier>{e01c412d-f264-41f1-b143-6e82735d342c}</UniqueIdentifier>
+    </Filter>
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="MatrizDevice.cuh">
+      <Filter>Clases\MatrizDevice</Filter>
+    </ClInclude>
+    <ClInclude Include="cuda_functions.cuh">
+      <Filter>FuncionesCUDA</Filter>
+    </ClInclude>
+    <ClInclude Include="RedNeuronalSecuencialRobusta.cuh">
+      <Filter>Clases\RedNeuronalSecuencialRobusta</Filter>
+    </ClInclude>
+  </ItemGroup>
+</Project>

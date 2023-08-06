@@ -36,14 +36,14 @@ const void aplicarFuncion(int id, float* zl, float* al, int nfilas, int ncolumna
 
 const void aplicarDerivadaFuncion(int id, float* m, int nfilas, int ncolumnas) {
 	if (id == 0) { aplicarDerivadaFuncionSigmoideCadaElementoMatriz << < dim3Ceil(nfilas / (float)32, ncolumnas / (float)32), dim3(32, 32) >> > (m, nfilas, ncolumnas); }
-	else if (id == 1){ aplicarDerivadaFuncionTahnCadaElementoMatriz << < dim3Ceil(nfilas / (float)32, ncolumnas / (float)32), dim3(32, 32) >> > (m, nfilas, ncolumnas); }
+	else if (id == 1) { aplicarDerivadaFuncionTahnCadaElementoMatriz << < dim3Ceil(nfilas / (float)32, ncolumnas / (float)32), dim3(32, 32) >> > (m, nfilas, ncolumnas); }
 	else if (id == 2) { aplicarDerivadaFuncionCosenoEspecialCadaElementoMatriz << < dim3Ceil(nfilas / (float)32, ncolumnas / (float)32), dim3(32, 32) >> > (m, nfilas, ncolumnas); }
 	else if (id == 3) { aplicarDerivadaFuncionPReluCadaElementoMatriz << < dim3Ceil(nfilas / (float)32, ncolumnas / (float)32), dim3(32, 32) >> > (m, nfilas, ncolumnas); }
 	cudaDeviceSynchronize();
 }
 
 const void productoMatricesDevice(float* a, float* b, float* c, int m, int n, int p) {
-	productoMatrices <<< dim3Ceil((p + 32 - 1) / (float)32, (m + 32 - 1) / (float)32), dim3(32, 32) >> > (a, b, c, m, n, p);
+	productoMatrices << < dim3Ceil((p + 32 - 1) / (float)32, (m + 32 - 1) / (float)32), dim3(32, 32) >> > (a, b, c, m, n, p);
 	cudaDeviceSynchronize();
 }
 
@@ -54,11 +54,42 @@ const void matrizTraspuestaDevice(float* odata, float* idata, int m, int n) {
 	cudaDeviceSynchronize();
 }
 
-void mostarMatrizDevice( char* com, float* p, int m, int n ) {
+void mostarMatrizDevice(char* com, float* p, int m, int n) {
 	float* ph = new float[m * n];
-	cudaMemcpy(ph, p, m*n*sizeof(float), cudaMemcpyDeviceToHost);
+	cudaMemcpy(ph, p, m * n * sizeof(float), cudaMemcpyDeviceToHost);
 	imprimirMatrizPorPantalla(com, ph, m, n);
 	delete ph;
+}
+
+//a*b = c; a, b, c, nf(a), nc(a) = nf(b), nc(b)
+const void computeGold(const float* A, const float* B, float* C, unsigned int hA, unsigned int wA, unsigned int wB) {
+	for (unsigned int i = 0; i < hA; ++i)
+		for (unsigned int j = 0; j < wB; ++j) {
+			float sum = 0;
+			for (unsigned int k = 0; k < wA; ++k) {
+				sum += A[i * wA + k] * B[k * wB + j];
+			}
+			C[i * wB + j] = sum;
+		}
+}
+
+const void sumarVectores(const int tm, float* dst, const float* src) {
+	for (int i = 0; i < tm; i++) {
+		dst[i] += src[i];
+	}
+}
+
+const void applyFastSigmoidFunction(const int tm, float* dst) {
+	for (int i = 0; i < tm; i++) {
+		dst[i] = (dst[i] / 1 + abs(dst[i])) * 0.5 + 0.5;
+	}
+}
+
+//mejor que con una copia constante cambiar, que raro...
+const void applyTahnFunction(const int tm, float* dst) {
+	for (int i = 0; i < tm; i++) {
+		dst[i] = tanh(dst[i]);
+	}
 }
 
 RedNeuronalSecuencial::RedNeuronalSecuencial(int nc, int* dc, int* fc) {
@@ -70,31 +101,27 @@ RedNeuronalSecuencial::RedNeuronalSecuencial(int nc, int* dc, int* fc) {
 }
 
 RedNeuronalSecuencial::RedNeuronalSecuencial(const char* nombre_archivo) {
-	
+
 	unsigned int nbytes = 0;
-	
+
 	char* cargar = leerArchivoYCerrar(nombre_archivo, &nbytes);
 
 	unsigned int nnumeros = nbytes / 4;
 
-	float* array = (float*) cargar;
+	float* array = (float*)cargar;
 
-	numero_capas = ((int*) array)[0];
+	numero_capas = ((int*)array)[0];
 
 	unsigned int offset = 1;
 
 	dimensiones_capas = new int[numero_capas];
-	funciones_capas = new int[numero_capas-1];
+	funciones_capas = new int[numero_capas - 1];
 
-	for (int i = 0; i < numero_capas; i++) {
-		dimensiones_capas[i] = ((int*)array)[offset];
-		offset += 1;
-	}
+	memcpy(dimensiones_capas, ((int*)array) + offset, numero_capas * sizeof(float));
+	offset += numero_capas;
 
-	for (int i = 0; i < numero_capas - 1; i++) {
-		funciones_capas[i] = ((int*)array)[offset];
-		offset += 1;
-	}
+	memcpy(funciones_capas, ((int*)array) + offset, (numero_capas - 1) * sizeof(float));
+	offset += numero_capas - 1;
 
 	GestorPunteroPunteroFloatHost gestor_host_bias_vectors(numero_capas - 1, getCopiaDimensionesCapasRed());
 	GestorPunteroPunteroFloatHost gestor_host_weight_matrices(numero_capas - 1, getCopiaDimensionesMatricesRed());
@@ -103,21 +130,40 @@ RedNeuronalSecuencial::RedNeuronalSecuencial(const char* nombre_archivo) {
 	float** host_weight_matrices = gestor_host_weight_matrices.getPunteroPunteroHost();
 
 	for (int i = 1; i < numero_capas; i++) {
-		for (int j = 0; j < dimensiones_capas[i]; j++) {
-			host_bias_vectors[i - 1][j] = ((float*)array)[offset];
-			offset += 1;
-		}
+		memcpy(host_bias_vectors[i - 1], ((float*)array) + offset, dimensiones_capas[i] * sizeof(float));
+		offset += dimensiones_capas[i];
 	}
 
 	for (int i = 0; i < numero_capas - 1; i++) {
-		for (int j = 0; j < dimensiones_capas[i] * dimensiones_capas[i + 1]; j++) {
-			host_weight_matrices[i][j] = ((float*)array)[offset];
-			offset += 1;
-		}
+		memcpy(host_weight_matrices[i], ((float*)array) + offset, dimensiones_capas[i] * dimensiones_capas[i + 1] * sizeof(float));
+		offset += dimensiones_capas[i] * dimensiones_capas[i + 1];
 	}
 
 	cargarEnDevice(false);
 	copiarPesosHostDevice(host_weight_matrices, host_bias_vectors);
+}
+
+void RedNeuronalSecuencial::cargarPunterosHostBiasesWeights(GestorPunteroPunteroFloatHost* biases, GestorPunteroPunteroFloatHost* weights) {
+
+	biases = new GestorPunteroPunteroFloatHost(numero_capas - 1, getCopiaDimensionesCapasRed());
+	weights = new GestorPunteroPunteroFloatHost(numero_capas - 1, getCopiaDimensionesMatricesRed());
+
+	float** host_bias_vectors = biases->getPunteroPunteroHost();
+	float** host_weight_matrices = weights->getPunteroPunteroHost();
+
+	float** bias_vectors = device_bias_vectors->getPunteroPunteroHostDevice();
+	float** weight_matrices = device_weight_matrices->getPunteroPunteroHostDevice();
+
+	for (int i = 1; i < numero_capas; i++) {
+		cudaMemcpy(host_bias_vectors[i - 1], bias_vectors[i - 1], biases->getDimensionesElementos()[i - 1], cudaMemcpyDeviceToHost);
+	}
+
+	for (int i = 0; i < numero_capas - 1; i++) {
+		cudaMemcpy(host_weight_matrices[i - 1], weight_matrices[i - 1], weights->getDimensionesElementos()[i - 1], cudaMemcpyDeviceToHost);
+	}
+
+	cudaDeviceSynchronize();
+
 }
 
 RedNeuronalSecuencial::~RedNeuronalSecuencial() {
@@ -181,38 +227,30 @@ void RedNeuronalSecuencial::exportarRedComoArchivo(const char* nombre_archivo) {
 
 	unsigned int numero = 1 + numero_capas + (numero_capas - 1);
 	for (int i = 1; i < numero_capas; i++) { numero += dimensiones_capas[i]; }
-	for (int i = 1; i < numero_capas; i++) { numero += dimensiones_capas[i] * dimensiones_capas[i-1]; }
+	for (int i = 1; i < numero_capas; i++) { numero += dimensiones_capas[i] * dimensiones_capas[i - 1]; }
 
-	float* array = (float*) malloc(numero * sizeof(float));
+	float* array = (float*)malloc(numero * sizeof(float));
 	((int*)array)[0] = numero_capas;
 
 	unsigned int offset = 1;
 
-	for (int i = 0; i < numero_capas; i++) {
-		((int*)array)[offset] = dimensiones_capas[i];
-		offset += 1;
-	}
+	memcpy(((int*)array) + offset, dimensiones_capas, numero_capas * sizeof(float));
+	offset += numero_capas;
 
-	for (int i = 0; i < numero_capas - 1; i++) {
-		((int*)array)[offset] = funciones_capas[i];
-		offset += 1;
-	}
+	memcpy(((int*)array) + offset, funciones_capas, (numero_capas - 1) * sizeof(float));
+	offset += numero_capas - 1;
 
 	for (int i = 1; i < numero_capas; i++) {
-		for (int j = 0; j < dimensiones_capas[i]; j++) {
-			array[offset] = host_bias_vectors[i - 1][j];
-			offset += 1;
-		}
+		memcpy(((float*)array) + offset, host_bias_vectors[i - 1], dimensiones_capas[i] * sizeof(float));
+		offset += dimensiones_capas[i];
 	}
 
 	for (int i = 0; i < numero_capas - 1; i++) {
-		for (int j = 0; j < dimensiones_capas[i] * dimensiones_capas[i + 1]; j++) {
-			array[offset] = host_weight_matrices[i][j];
-			offset += 1;
-		}
+		memcpy(((float*)array) + offset, host_weight_matrices[i], dimensiones_capas[i] * dimensiones_capas[i + 1] * sizeof(float));
+		offset += dimensiones_capas[i] * dimensiones_capas[i + 1];
 	}
 
-	char* buffer = (char*) array;
+	char* buffer = (char*)array;
 
 	crearArchivoEscribirYCerrar(nombre_archivo, numero * sizeof(float), buffer);
 
@@ -347,9 +385,9 @@ float RedNeuronalSecuencial::calcularFuncionCosteMSE(int batch_size, int nvalsal
 
 		cudaMemset(agrupados, 0, nvalsalida * sizeof(float));
 
-		sumarACadaElementoVectorColumnaMatriz <<< dim3Ceil(batch_size / (float)32, nvalsalida / (float)32), dim3(32, 32) >>> (copia_vsalida, agrupados, batch_size, nvalsalida);
+		sumarACadaElementoVectorColumnaMatriz << < dim3Ceil(batch_size / (float)32, nvalsalida / (float)32), dim3(32, 32) >> > (copia_vsalida, agrupados, batch_size, nvalsalida);
 
-		float* resultado = (float*) malloc( nvalsalida * sizeof(float) );
+		float* resultado = (float*)malloc(nvalsalida * sizeof(float));
 		cudaMemcpy(resultado, agrupados, nvalsalida * sizeof(float), cudaMemcpyDeviceToHost);
 
 		cudaFree(copia_vsalida);
@@ -367,7 +405,7 @@ float RedNeuronalSecuencial::calcularFuncionCosteMSE(int batch_size, int nvalsal
 	return 0.0;
 }
 
-void RedNeuronalSecuencial::entrenarRedMSE_SGD(float tapren, int nepocas, int nejemplos, int batch_size, int nvalsentrada, int nvalsalida, float* ventrada, float* vsalida) {
+void RedNeuronalSecuencial::entrenarRedMSE_SGD(float tapren, int mostrar_fcoste_cada_n_epocas, int nepocas, int nejemplos, int batch_size, int nvalsentrada, int nvalsalida, float* ventrada, float* vsalida) {
 
 	int ins = batch_size * nvalsentrada * sizeof(float);
 	int os = batch_size * nvalsalida * sizeof(float);
@@ -409,7 +447,7 @@ void RedNeuronalSecuencial::entrenarRedMSE_SGD(float tapren, int nepocas, int ne
 				calcularErrorMSE_SGD(nrelems, nvalsalida, vsalida + (batch_size * nvalsalida * nbatchs));
 				aplicarVectorGradienteSGD(tapren, nrelems);
 			}
-			if ((i + 1) % 500 == 0) {
+			if ((i + 1) % mostrar_fcoste_cada_n_epocas == 0) {
 				printf("\nError MSE: %.16f | Quedan %d epocas", (float)(error / ((float)(nejemplos * nvalsalida))), nepocas - i - 1);
 			}
 		}
@@ -418,12 +456,12 @@ void RedNeuronalSecuencial::entrenarRedMSE_SGD(float tapren, int nepocas, int ne
 		cudaMemcpy(device_batch_input, ventrada, ins, cudaMemcpyHostToDevice);
 		cudaMemcpy(device_batch_output, vsalida, os, cudaMemcpyHostToDevice);
 
-		
+
 		for (int i = 0; i < nepocas; i++) {
 			float error = 0.0;
 			propagacionHaciaDelanteEntrenamiento(batch_size, nvalsentrada, ventrada);
-			if ((i + 1) % 500 == 0) { 
-				error += calcularFuncionCosteMSE(batch_size, nvalsalida, vsalida); 
+			if ((i + 1) % 500 == 0) {
+				error += calcularFuncionCosteMSE(batch_size, nvalsalida, vsalida);
 				printf("\nError MSE: %.16f | Quedan %d epocas", error/(float)(nejemplos*nvalsalida), nepocas - i - 1);
 			}
 			calcularErrorMSE_SGD(batch_size, nvalsalida, vsalida);
@@ -446,7 +484,8 @@ void RedNeuronalSecuencial::entrenarRedMSE_SGD(float tapren, int nepocas, int ne
 		//if (device_err_bias_v != NULL) { delete device_err_bias_v; device_err_bias_v = NULL; }
 		//if (device_err_weight_v != NULL) { delete device_err_weight_v; device_err_weight_v = NULL; }
 
-	} else {
+	}
+	else {
 		printf("El numero de valores de cada ejemplo de entrada y salida debe ser igual que el tamanno de la capa de entrada de la red");
 	}
 
@@ -469,7 +508,7 @@ void RedNeuronalSecuencial::calcularErrorMSE_SGD(int batch_size, int nvalsalida,
 
 		//error bias actual
 
-		aplicarDerivadaFuncion(funciones_capas[i-1], host_device_zl[i - 1], batch_size, dimensiones_capas[i]);
+		aplicarDerivadaFuncion(funciones_capas[i - 1], host_device_zl[i - 1], batch_size, dimensiones_capas[i]);
 		//aplicarDerivadaFuncionSigmoideCadaElementoMatriz << < dim3Ceil(batch_size / (float)32, dimensiones_capas[i] / (float)32), dim3(32, 32) >> > (host_device_zl[i - 1], batch_size, dimensiones_capas[i]);
 		//manageCUDAError(cudaDeviceSynchronize());
 
@@ -480,7 +519,8 @@ void RedNeuronalSecuencial::calcularErrorMSE_SGD(int batch_size, int nvalsalida,
 
 		if (i > 1) {
 			matrizTraspuestaDevice(temp_matr_traspose, host_device_al[i - 2], batch_size, dimensiones_capas[i - 1]);
-		} else {
+		}
+		else {
 			matrizTraspuestaDevice(temp_matr_traspose, device_batch_input, batch_size, dimensiones_capas[i - 1]);
 		}
 
@@ -505,7 +545,7 @@ void RedNeuronalSecuencial::aplicarVectorGradienteSGD(float tapren, int batch_si
 	float** host_device_weight_matrices = device_weight_matrices->getPunteroPunteroHostDevice();
 
 	float** host_device_al = device_forward_al->getPunteroPunteroHostDevice();
-	float** host_device_weight_error_matrices = device_err_weight_m->getPunteroPunteroHostDevice();	
+	float** host_device_weight_error_matrices = device_err_weight_m->getPunteroPunteroHostDevice();
 
 	for (int i = 0; i < numero_capas - 1; i++) {
 
@@ -517,7 +557,7 @@ void RedNeuronalSecuencial::aplicarVectorGradienteSGD(float tapren, int batch_si
 		sumarACadaElementoVectorColumnaMatriz << < dimension, dim3(32, 32) >> > (host_device_al[i], host_device_bias_vectors[i], batch_size, dimensiones_capas[i + 1]);
 		cudaDeviceSynchronize();
 
-		
+
 
 		multiplicarCadaElementoMatriz << < dimension, dim3(32, 32) >> > (host_device_weight_error_matrices[i], factor, dimensiones_capas[i], dimensiones_capas[i + 1]);
 		cudaDeviceSynchronize();
@@ -564,4 +604,93 @@ void RedNeuronalSecuencial::propagacionHaciaDelanteEntrenamiento(int nejemplos, 
 		//manageCUDAError(cudaDeviceSynchronize());
 	}
 
+}
+
+void RedNeuronalSecuencial::iniciarModoPropagacionDelanteRapido() {
+	host_bias_vectors = new GestorPunteroPunteroFloatHost(numero_capas - 1, getCopiaDimensionesCapasRed());
+	host_weight_matrices = new GestorPunteroPunteroFloatHost(numero_capas - 1, getCopiaDimensionesMatricesRed());
+	host_bias_vectors_fast = host_bias_vectors->getPunteroPunteroHost();
+	host_weight_matrices_fast = host_weight_matrices->getPunteroPunteroHost();
+
+	for (int i = 0; i < numero_capas - 1; i++) {
+		cudaMemcpy(host_bias_vectors_fast[i], device_bias_vectors->getPunteroPunteroHostDevice()[i], host_bias_vectors->getDimensionesElementos()[i] * sizeof(float), cudaMemcpyDeviceToHost);
+		cudaMemcpy(host_weight_matrices_fast[i], device_weight_matrices->getPunteroPunteroHostDevice()[i], host_weight_matrices->getDimensionesElementos()[i] * sizeof(float), cudaMemcpyDeviceToHost);
+		//imprimirMatrizPorPantalla("bias", host_bias_vectors_fast[i], 1, host_bias_vectors->getDimensionesElementos()[i]);
+		//imprimirMatrizPorPantalla("weights", host_weight_matrices_fast[i], dimensiones_capas[i], dimensiones_capas[i+1]);
+	}
+	cudaDeviceSynchronize();
+
+	int may = 0;
+	for (int i = 1; i < numero_capas; i++) { may = max(may, dimensiones_capas[i]); }
+	calc_matrix_fast = new float[may];
+}
+
+const void RedNeuronalSecuencial::propagacionDelanteRapido(const float* input, float* output) {
+	computeGold(input, host_weight_matrices_fast[0], calc_matrix_fast, 1, dimensiones_capas[0], dimensiones_capas[1]);
+	sumarVectores(dimensiones_capas[1], calc_matrix_fast, host_bias_vectors_fast[0]);
+	applyTahnFunction(dimensiones_capas[1], calc_matrix_fast);
+	for (int i = 1; i < numero_capas - 2; i++) {
+		computeGold(calc_matrix_fast, host_weight_matrices_fast[i], calc_matrix_fast, 1, dimensiones_capas[i], dimensiones_capas[i + 1]);
+		sumarVectores(dimensiones_capas[i + 1], calc_matrix_fast, host_bias_vectors_fast[i]);
+		applyTahnFunction(dimensiones_capas[i + 1], calc_matrix_fast);
+	}
+	computeGold(calc_matrix_fast, host_weight_matrices_fast[numero_capas - 2], calc_matrix_fast, 1, dimensiones_capas[numero_capas - 2], dimensiones_capas[numero_capas - 1]);
+	sumarVectores(dimensiones_capas[numero_capas - 1], calc_matrix_fast, host_bias_vectors_fast[numero_capas - 2]);
+	memcpy(output, calc_matrix_fast, dimensiones_capas[numero_capas - 1] * sizeof(float));
+	applyTahnFunction(dimensiones_capas[numero_capas - 1], output);
+}
+
+void RedNeuronalSecuencial::terminarModoPropagacionDelanteRapido() {
+	host_bias_vectors_fast = NULL;
+	host_weight_matrices_fast = NULL;
+	delete host_bias_vectors;
+	delete host_weight_matrices;
+}
+
+void RedNeuronalSecuencial::mostrarPesosBiasesRed() {
+	float** punteros_biases = device_bias_vectors->getPunteroPunteroHostDevice();
+	float** punteros_pesos = device_weight_matrices->getPunteroPunteroHostDevice();
+	for (int i = 0; i < numero_capas - 1; i++) {
+		printf("\nbias capa %d:\n", i + 1);
+		float* h_p = (float*)malloc(dimensiones_capas[i + 1] * sizeof(float));
+		cudaMemcpy(h_p, punteros_biases[i], dimensiones_capas[i + 1] * sizeof(float), cudaMemcpyDeviceToHost);
+		cudaDeviceSynchronize();
+		imprimirMatrizPorPantalla("", h_p, dimensiones_capas[i + 1], 1);
+		free(h_p);
+		h_p = NULL;
+	}
+
+	for (int i = 0; i < numero_capas - 1; i++) {
+		printf("\npesos capa %d:\n", i + 1);
+		float* h_p = (float*)malloc(dimensiones_capas[i] * dimensiones_capas[i + 1] * sizeof(float));
+		cudaMemcpy(h_p, punteros_pesos[i], dimensiones_capas[i] * dimensiones_capas[i + 1] * sizeof(float), cudaMemcpyDeviceToHost);
+		cudaDeviceSynchronize();
+		imprimirMatrizPorPantalla("", h_p, dimensiones_capas[i], dimensiones_capas[i + 1]);
+		free(h_p);
+		h_p = NULL;
+	}
+}
+
+void RedNeuronalSecuencial::mostrarZlAl(int batch_size) {
+	float** punteros_zl = device_forward_zl->getPunteroPunteroHostDevice();
+	float** punteros_al = device_forward_al->getPunteroPunteroHostDevice();
+	for (int i = 1; i < numero_capas; i++) {
+		printf("\nzl capa %d:\n", i + 1);
+		float* h_p = (float*)malloc(dimensiones_capas[i] * batch_size * sizeof(float));
+		cudaMemcpy(h_p, punteros_zl[i - 1], dimensiones_capas[i] * batch_size * sizeof(float), cudaMemcpyDeviceToHost);
+		cudaDeviceSynchronize();
+		imprimirMatrizPorPantalla("", h_p, batch_size, dimensiones_capas[i]);
+		free(h_p);
+		h_p = NULL;
+	}
+
+	for (int i = 1; i < numero_capas; i++) {
+		printf("\nal capa %d:\n", i + 1);
+		float* h_p = (float*)malloc(dimensiones_capas[i] * batch_size * sizeof(float));
+		cudaMemcpy(h_p, punteros_al[i - 1], dimensiones_capas[i] * batch_size * sizeof(float), cudaMemcpyDeviceToHost);
+		cudaDeviceSynchronize();
+		imprimirMatrizPorPantalla("", h_p, batch_size, dimensiones_capas[i]);
+		free(h_p);
+		h_p = NULL;
+	}
 }
