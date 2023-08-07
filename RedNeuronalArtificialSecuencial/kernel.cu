@@ -15,6 +15,7 @@ int main()
 {
     srand(time(NULL));
 
+    /*
     RedNeuronalSecuencial* r = new RedNeuronalSecuencial(4, new int[4] { 1024, 64, 64, 1024 }, new int[3] {1, 1, 1});
 
     float* de = new float[1024];
@@ -46,20 +47,8 @@ int main()
     imprimirMatrizPorPantalla("", res, 1, 1024);
     delete res;
     delete r;
-
-    /*
-    RedNeuronalSecuencial* r = new RedNeuronalSecuencial("caca.data");
-
-    float* de = new float[1024];
-    float* ds = new float[1024];
-
-    float* res = r->propagacionHaciaDelante(1, 1024, de);
-    imprimirMatrizPorPantalla("", res, 1, 1024);
-    delete res;
-    delete r;
     */
 
-    /*
     const int nentradas = 2;
     const int nsalidas = 1;
     float tapren = 0.01;
@@ -78,9 +67,17 @@ int main()
     float* res = r->propagacionHaciaDelante(4, nentradas, de);
     imprimirMatrizPorPantalla("", res, 4, nsalidas);
     delete res;
+    delete r;
 
-    //r->exportarRedComoArchivo("caca.data");
+    /*
+    RedNeuronalSecuencial* r = new RedNeuronalSecuencial("caca.data");
 
+    float* de = new float[1024];
+    float* ds = new float[1024];
+
+    float* res = r->propagacionHaciaDelante(1, 1024, de);
+    imprimirMatrizPorPantalla("", res, 1, 1024);
+    delete res;
     delete r;
     */
 

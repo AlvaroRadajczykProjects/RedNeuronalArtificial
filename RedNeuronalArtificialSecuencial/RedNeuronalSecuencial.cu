@@ -1,5 +1,10 @@
 #include "RedNeuronalSecuencial.cuh"
 
+//para el producto de matrices utilizando cublas
+cublasHandle_t handle;
+const float alpha = 1.0f; //aparte del producto entre los elementos, puedes multiplicar esto
+const float beta = 0.0f; //aparte del producto final, puedes sumar esto
+
 void imprimirVectorIntPorPantalla(char* texto_mostrar, float vector[], int inicio, int fin) {
 	printf("\n%s [ ", texto_mostrar);
 	for (int i = inicio; i < fin; i++) {
@@ -31,7 +36,7 @@ const void aplicarFuncion(int id, float* zl, float* al, int nfilas, int ncolumna
 	else if (id == 1) { aplicarFuncionTahnCadaElementoMatriz << < dim3Ceil(nfilas / (float)32, ncolumnas / (float)32), dim3(32, 32) >> > (zl, al, nfilas, ncolumnas); }
 	else if (id == 2) { aplicarFuncionCosenoEspecialCadaElementoMatriz << < dim3Ceil(nfilas / (float)32, ncolumnas / (float)32), dim3(32, 32) >> > (zl, al, nfilas, ncolumnas); }
 	else if (id == 3) { aplicarFuncionPReluCadaElementoMatriz << < dim3Ceil(nfilas / (float)32, ncolumnas / (float)32), dim3(32, 32) >> > (zl, al, nfilas, ncolumnas); }
-	cudaDeviceSynchronize();
+	//cudaDeviceSynchronize();
 }
 
 const void aplicarDerivadaFuncion(int id, float* m, int nfilas, int ncolumnas) {
@@ -39,19 +44,22 @@ const void aplicarDerivadaFuncion(int id, float* m, int nfilas, int ncolumnas) {
 	else if (id == 1) { aplicarDerivadaFuncionTahnCadaElementoMatriz << < dim3Ceil(nfilas / (float)32, ncolumnas / (float)32), dim3(32, 32) >> > (m, nfilas, ncolumnas); }
 	else if (id == 2) { aplicarDerivadaFuncionCosenoEspecialCadaElementoMatriz << < dim3Ceil(nfilas / (float)32, ncolumnas / (float)32), dim3(32, 32) >> > (m, nfilas, ncolumnas); }
 	else if (id == 3) { aplicarDerivadaFuncionPReluCadaElementoMatriz << < dim3Ceil(nfilas / (float)32, ncolumnas / (float)32), dim3(32, 32) >> > (m, nfilas, ncolumnas); }
-	cudaDeviceSynchronize();
+	//cudaDeviceSynchronize();
 }
 
-const void productoMatricesDevice(float* a, float* b, float* c, int m, int n, int p) {
-	productoMatrices << < dim3Ceil((p + 32 - 1) / (float)32, (m + 32 - 1) / (float)32), dim3(32, 32) >> > (a, b, c, m, n, p);
-	cudaDeviceSynchronize();
+const void productoMatricesDevice(const float* a, const float* b, float* c, int m, int k, int n) {
+	cublasSgemm(handle, CUBLAS_OP_N, CUBLAS_OP_N, n, m, k, &alpha, b, n, a, k, &beta, c, n);
+	//cublasSgemm(handle, CUBLAS_OP_N, CUBLAS_OP_N, M, N, P, &alpha, d_B, P, d_A, N, &beta, d_C, P);
+	/*productoMatrices << < dim3Ceil((p + 32 - 1) / (float)32, (m + 32 - 1) / (float)32), dim3(32, 32) >> > (a, b, c, m, n, p);
+	cudaDeviceSynchronize();*/
 }
 
 //T(idata) = odata
 const void matrizTraspuestaDevice(float* odata, float* idata, int m, int n) {
-	int dimension = (int)vmax(m, n);
-	matrizTraspuesta << < dim3Ceil(dimension / (float)32, dimension / (float)32), dim3(32, 32) >> > (odata, idata, m, n);
-	cudaDeviceSynchronize();
+	cublasSgeam(handle, CUBLAS_OP_T, CUBLAS_OP_N, m, n, &alpha, idata, n, &beta, idata, m, odata, m);
+	/*int dimension = (int)vmax(m, n);
+	matrizTraspuesta << < dim3Ceil(dimension / (float)32, dimension / (float)32), dim3(32, 32) >> > (odata, idata, m, n);*/
+	//cudaDeviceSynchronize();
 }
 
 void mostarMatrizDevice(char* com, float* p, int m, int n) {
@@ -325,7 +333,7 @@ float* RedNeuronalSecuencial::propagacionHaciaDelante(int nejemplos, int nvalsen
 			productoMatricesDevice(device_matriz_entrada, host_device_weight_matrices[i], device_matriz_resultado, M, N, P);
 
 			sumarCadaFilaMatrizVector << < dim3Ceil(M / (float)32, P / (float)32), dim3(32, 32) >> > (device_matriz_resultado, host_device_bias_vectors[i], M, P);
-			cudaDeviceSynchronize();
+			//cudaDeviceSynchronize();
 
 			aplicarFuncion(funciones_capas[i], device_matriz_resultado, device_matriz_resultado, M, P);
 			//aplicarFuncionSigmoideCadaElementoMatriz << < dim3Ceil(M / (float)32, P / (float)32), dim3(32, 32) >> > (device_matriz_resultado, device_matriz_resultado, M , P);
@@ -378,7 +386,7 @@ float RedNeuronalSecuencial::calcularFuncionCosteMSE(int batch_size, int nvalsal
 		cudaMemcpy(copia_vsalida, vsalida, os, cudaMemcpyHostToDevice);
 
 		aplicarFuncionCosteMSE << < dim3Ceil(batch_size / (float)32, nvalsalida / (float)32), dim3(32, 32) >> > (batch_size, nvalsalida, host_device_al[numero_capas - 2], copia_vsalida, copia_vsalida);
-		cudaDeviceSynchronize();
+		//cudaDeviceSynchronize();
 
 		float* agrupados = 0;
 		cudaMalloc(&agrupados, nvalsalida * sizeof(float));
@@ -409,6 +417,8 @@ void RedNeuronalSecuencial::entrenarRedMSE_SGD(float tapren, int mostrar_fcoste_
 
 	int ins = batch_size * nvalsentrada * sizeof(float);
 	int os = batch_size * nvalsalida * sizeof(float);
+
+	cublasCreate(&handle);
 
 	if (nvalsentrada == dimensiones_capas[0] && nvalsalida == dimensiones_capas[numero_capas - 1]) {
 
@@ -484,6 +494,8 @@ void RedNeuronalSecuencial::entrenarRedMSE_SGD(float tapren, int mostrar_fcoste_
 		//if (device_err_bias_v != NULL) { delete device_err_bias_v; device_err_bias_v = NULL; }
 		//if (device_err_weight_v != NULL) { delete device_err_weight_v; device_err_weight_v = NULL; }
 
+		cublasDestroy(handle);
+
 	}
 	else {
 		printf("El numero de valores de cada ejemplo de entrada y salida debe ser igual que el tamanno de la capa de entrada de la red");
@@ -502,7 +514,7 @@ void RedNeuronalSecuencial::calcularErrorMSE_SGD(int batch_size, int nvalsalida,
 	float** host_device_weight_error_matrices = device_err_weight_m->getPunteroPunteroHostDevice();
 
 	aplicarDerivadaFuncionPerdidaMSECadaElementoPredY << < dim3Ceil(batch_size / (float)32, nvalsalida / (float)32), dim3(32, 32) >> > (batch_size, nvalsalida, host_device_al[numero_capas - 2], device_batch_output);
-	cudaDeviceSynchronize();
+	//cudaDeviceSynchronize();
 
 	for (int i = numero_capas - 1; i > 0; i--) {
 
@@ -513,7 +525,7 @@ void RedNeuronalSecuencial::calcularErrorMSE_SGD(int batch_size, int nvalsalida,
 		//manageCUDAError(cudaDeviceSynchronize());
 
 		multiplicarAMatrizAMatrizB << < dim3Ceil(batch_size / (float)32, dimensiones_capas[i] / (float)32), dim3(32, 32) >> > (host_device_al[i - 1], host_device_zl[i - 1], batch_size, dimensiones_capas[i]);
-		cudaDeviceSynchronize();
+		//cudaDeviceSynchronize();
 
 		//error pesos
 
@@ -552,18 +564,18 @@ void RedNeuronalSecuencial::aplicarVectorGradienteSGD(float tapren, int batch_si
 		dim3 dimension = dim3Ceil(batch_size / (float)32, dimensiones_capas[i + 1] / (float)32);
 
 		multiplicarCadaElementoMatriz << < dimension, dim3(32, 32) >> > (host_device_al[i], factor, batch_size, dimensiones_capas[i + 1]);
-		cudaDeviceSynchronize();
+		//cudaDeviceSynchronize();
 
 		sumarACadaElementoVectorColumnaMatriz << < dimension, dim3(32, 32) >> > (host_device_al[i], host_device_bias_vectors[i], batch_size, dimensiones_capas[i + 1]);
-		cudaDeviceSynchronize();
+		//cudaDeviceSynchronize();
 
 
 
 		multiplicarCadaElementoMatriz << < dimension, dim3(32, 32) >> > (host_device_weight_error_matrices[i], factor, dimensiones_capas[i], dimensiones_capas[i + 1]);
-		cudaDeviceSynchronize();
+		//cudaDeviceSynchronize();
 
 		sumarAMatrizAMatrizB << < dimension, dim3(32, 32) >> > (host_device_weight_matrices[i], host_device_weight_error_matrices[i], dimensiones_capas[i], dimensiones_capas[i + 1]);
-		cudaDeviceSynchronize();
+		//cudaDeviceSynchronize();
 	}
 }
 
@@ -583,7 +595,7 @@ void RedNeuronalSecuencial::propagacionHaciaDelanteEntrenamiento(int nejemplos, 
 
 	dim3 dimension = dim3Ceil(M / (float)32, P / (float)32);
 	sumarCadaFilaMatrizVector << < dimension, dim3(32, 32) >> > (host_device_zl[0], host_device_bias_vectors[0], M, P);
-	cudaDeviceSynchronize();
+	//cudaDeviceSynchronize();
 
 	aplicarFuncion(funciones_capas[0], host_device_zl[0], host_device_al[0], M, P);
 	//aplicarFuncionSigmoideCadaElementoMatriz << < dimension, dim3(32, 32) >> > (host_device_zl[0], host_device_al[0], M, P);
@@ -597,7 +609,7 @@ void RedNeuronalSecuencial::propagacionHaciaDelanteEntrenamiento(int nejemplos, 
 		dim3 dimension = dim3Ceil(M / (float)32, P / (float)32);
 
 		sumarCadaFilaMatrizVector << < dimension, dim3(32, 32) >> > (host_device_zl[i], host_device_bias_vectors[i], M, P);
-		cudaDeviceSynchronize();
+		//cudaDeviceSynchronize();
 
 		aplicarFuncion(funciones_capas[i], host_device_zl[i], host_device_al[i], M, P);
 		//aplicarFuncionSigmoideCadaElementoMatriz << < dimension, dim3(32, 32) >> > (host_device_zl[i], host_device_al[i], M, P);
@@ -618,7 +630,7 @@ void RedNeuronalSecuencial::iniciarModoPropagacionDelanteRapido() {
 		//imprimirMatrizPorPantalla("bias", host_bias_vectors_fast[i], 1, host_bias_vectors->getDimensionesElementos()[i]);
 		//imprimirMatrizPorPantalla("weights", host_weight_matrices_fast[i], dimensiones_capas[i], dimensiones_capas[i+1]);
 	}
-	cudaDeviceSynchronize();
+	//cudaDeviceSynchronize();
 
 	int may = 0;
 	for (int i = 1; i < numero_capas; i++) { may = max(may, dimensiones_capas[i]); }
