@@ -62,3 +62,14 @@ __global__ void multiplicarAMatrizAMatrizB(float* a, float* b, int nrows, int nc
 __global__ void multiplicarCadaElementoMatriz(float* m, float x, int nrows, int ncols);
 
 __global__ void sumarACadaElementoVectorColumnaMatriz(const float* matrix, float* columnSums, int numRows, int numCols);
+
+//con la matriz gradiente grad se aplica momento en la matriz destino mdst 
+__global__ void actualizarValoresMatrizMomentoAdam(const float* grad, float* mdst, float b1, int nrows, int ncols);
+
+//con la matriz gradiente grad se aplica velocidad en la matriz destino mdst 
+__global__ void actualizarValoresMatrizVelocidadAdam(const float* grad, float* mdst, float b2, int nrows, int ncols);
+
+//se aplica el aprendizaje adam en la matriz destino mdst, mom es la matriz momento, vel es la matriz velocidad
+__global__ void calcularVectorGradienteAdam(float tapren, float b1, float b2, float epsilon, float* mdst, const float* mom, const float* vel, int nrows, int ncols);
+
+__global__ void ponerTodosElementosVectorCero(float* v, int nelems);

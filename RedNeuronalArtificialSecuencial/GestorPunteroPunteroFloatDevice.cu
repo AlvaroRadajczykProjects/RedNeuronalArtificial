@@ -60,5 +60,12 @@ void GestorPunteroPunteroFloatDevice::copiarDeviceAHost(float** h_p) {
 	manageCUDAError(cudaDeviceSynchronize());
 }
 
-
+void GestorPunteroPunteroFloatDevice::ponerElementosTodosElementosACero() {
+	for (int i = 0; i < numero_elementos; i++) {
+		manageCUDAError(cudaMemset((void*) hd_p[i], 0, dimensiones_elementos[i] * sizeof(float)));
+		manageCUDAError(cudaDeviceSynchronize());
+		//ponerTodosElementosVectorCero << < ( (int) ceil( dimensiones_elementos[i] / (float) 1024 ) ), 1024 >> > (hd_p[i], dimensiones_elementos[i]);
+		//manageCUDAError(cudaDeviceSynchronize());
+	}
+}
 

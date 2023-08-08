@@ -36,14 +36,20 @@ class RedNeuronalSecuencial {
 		float* device_batch_input = NULL;
 		//matriz que guarda el array de valores de salida en el device
 		float* device_batch_output = NULL;
+
 		//matriz en el device donde se guarda temporalmente una matriz para calcular matrices traspuestas
 		float* temp_matr_traspose = NULL;
 
 		//matrices donde se guardan los valores de la propagación hacia adelante necesario para el entrenamiento
+		//en al, al hacer backpropagation, se guardan los valores de los errores de los biases para todos los ejemplos
 		GestorPunteroPunteroFloatDevice* device_forward_zl = NULL;
 		GestorPunteroPunteroFloatDevice* device_forward_al = NULL;
 
 		//matrices donde se guardan los valores de error de los pesos y de los biases de los vectores gradientes
+		GestorPunteroPunteroFloatDevice* device_err_bias_vgrad = NULL;
+		GestorPunteroPunteroFloatDevice* device_err_weight_vgrad = NULL;
+
+		//aquí se almacenan los valores de momento y velocidad
 		GestorPunteroPunteroFloatDevice* device_err_bias_m = NULL;
 		GestorPunteroPunteroFloatDevice* device_err_weight_m = NULL;
 		GestorPunteroPunteroFloatDevice* device_err_bias_v = NULL;
@@ -61,12 +67,18 @@ class RedNeuronalSecuencial {
 		int* getCopiaDimensionesMatricesRed();
 		int getMaxTamMatrTempTrans(int batch_size);
 		int* getDimensionesZlAl(int batch_size);
-		float calcularFuncionCosteMSE(int batch_size, int nvalsalida, float* vsalida);
-		void calcularErrorMSE_SGD(int batch_size, int nvalsalida, float* vsalida);
-		void aplicarVectorGradienteSGD(float tapren, int batch_size);
-		void propagacionHaciaDelanteEntrenamiento(int nejemplos, int nvalsentrada, float* matrizejemplos);
+
 		void cargarEnDevice(bool iniciarValoresBiasesWeights);
 		void copiarPesosHostDevice(float** host_pesos, float** host_biases);
+
+		float calcularFuncionCosteMSE(int batch_size, int nvalsalida, float* vsalida);
+
+		void calcularVectorGradiente(int batch_size, int nvalsalida, float* vsalida);
+
+		void aplicarVectorGradienteSGD(float tapren, int batch_size);
+		void aplicarVectorGradienteAdam(float tapren, float b1, float b2, float epsilon, int batch_size);
+
+		void propagacionHaciaDelanteEntrenamiento(int nejemplos, int nvalsentrada, float* matrizejemplos);
 
 	public:
 		RedNeuronalSecuencial(int nc, int* dc, int* fc);
@@ -78,7 +90,9 @@ class RedNeuronalSecuencial {
 		int* getFuncionesCapas();
 		void exportarRedComoArchivo(const char* nombre_archivo);
 		float* propagacionHaciaDelante(int nejemplos, int nvalsentrada, float* matrizejemplos);
+
 		void entrenarRedMSE_SGD(float tapren, int mostrar_fcoste_cada_n_epocas, int nepocas, int nejemplos, int batch_size, int nvalsentrada, int nvalssalida, float* ventrada, float* vsalida);
+		void entrenarRedMSE_Adam(float tapren, float b1, float b2, float epsilon, int mostrar_fcoste_cada_n_epocas, int nepocas, int nejemplos, int batch_size, int nvalsentrada, int nvalsalida, float* ventrada, float* vsalida);
 
 		void iniciarModoPropagacionDelanteRapido();
 		const void propagacionDelanteRapido(const float* input, float* output);
