@@ -291,7 +291,9 @@ void RedNeuronalSecuencial::cargarEnDevice(bool iniciarValoresBiasesWeights) {
 		curandGenerator_t generador_dnorm = crearGeneradorNumerosAleatoriosEnDistribucionNormal();
 
 		for (int i = 0; i < device_weight_matrices->getNumeroElementos(); i++) {
-			generarNumerosAleatoriosEnDistribucionNormal(generador_dnorm, 0.0, 1.0, punteros_en_host_de_device_weights[i], device_weight_matrices->getDimensionesElementos()[i]);
+			//generarNumerosAleatoriosEnDistribucionNormal(generador_dnorm, 0.0, 1.0, punteros_en_host_de_device_weights[i], device_weight_matrices->getDimensionesElementos()[i]);
+			//min(1.0,2/(float)device_bias_vectors->getDimensionesElementos()[i])
+			generarNumerosAleatoriosEnDistribucionNormal(generador_dnorm, 0.0, 2 / (float)device_bias_vectors->getDimensionesElementos()[i], punteros_en_host_de_device_weights[i], device_weight_matrices->getDimensionesElementos()[i]);
 		}
 
 		curandDestroyGenerator(generador_dnorm);
@@ -403,6 +405,8 @@ float RedNeuronalSecuencial::calcularFuncionCosteMSE(int batch_size, int nvalsal
 		float res = 0.0;
 		for (int i = 0; i < nvalsalida; i++) { res += resultado[i]; }
 
+		free(resultado);
+
 		//printf("\nValor de la funcion de coste MSE: %.16f",res/(batch_size*nvalsalida));
 
 		return res;
@@ -463,7 +467,7 @@ void RedNeuronalSecuencial::entrenarRedMSE_SGD(float tapren, int mostrar_fcoste_
 			if ((i + 1) % mostrar_fcoste_cada_n_epocas == 0) {
 				printf("\nError MSE: %.16f | Quedan %d epocas", (float)(error / ((float)(nejemplos * nvalsalida))), nepocas - i - 1);
 			}
-			if (error < 0.00000001) {
+			if (error < 0.000000000001) {
 				printf("\nSe ha convergido bastante bien");
 				break;
 			}
@@ -555,7 +559,7 @@ void RedNeuronalSecuencial::calcularVectorGradiente(int batch_size, int nvalsali
 
 void RedNeuronalSecuencial::aplicarVectorGradienteSGD(float tapren, int batch_size) {
 
-	float factor = -1.0 * (tapren / batch_size);
+	float factor = -1.0 * (tapren / (float) batch_size);
 
 	float** host_device_bias_vectors = device_bias_vectors->getPunteroPunteroHostDevice();
 	float** host_device_weight_matrices = device_weight_matrices->getPunteroPunteroHostDevice();
@@ -571,11 +575,11 @@ void RedNeuronalSecuencial::aplicarVectorGradienteSGD(float tapren, int batch_si
 
 		dim3 dimension = dim3Ceil(batch_size / (float)32, dimensiones_capas[i + 1] / (float)32);
 
-		multiplicarCadaElementoMatriz << < dimension, dim3(32, 32) >> > (host_device_al[i], factor, batch_size, dimensiones_capas[i + 1]);
-
 		sumarACadaElementoVectorColumnaMatriz << < dimension, dim3(32, 32) >> > (host_device_al[i], host_device_bias_error_matrices[i], batch_size, dimensiones_capas[i + 1]);
 
 		int nbloques = ( (int) ceil(dimensiones_capas[i + 1] / (float)1024) );
+
+		multiplicarCadaElementoMatriz << < nbloques, 1024 >> > (host_device_bias_error_matrices[i], factor, 1, dimensiones_capas[i + 1]);
 
 		sumarAMatrizAMatrizB << < nbloques, 1024 >> > (host_device_bias_vectors[i], host_device_bias_error_matrices[i], 1, dimensiones_capas[i + 1]);
 
@@ -669,7 +673,7 @@ void RedNeuronalSecuencial::entrenarRedMSE_Adam(float tapren, float b1, float b2
 			if ((i + 1) % mostrar_fcoste_cada_n_epocas == 0) {
 				printf("\nError MSE: %.16f | Quedan %d epocas", (float)(error / ((float)(nejemplos * nvalsalida))), nepocas - i - 1);
 			}
-			if (error < 0.00000001) { 
+			if (error < 0.000000000001) { 
 				printf("\nSe ha convergido bastante bien");
 				break; 
 			}
@@ -720,7 +724,7 @@ void RedNeuronalSecuencial::entrenarRedMSE_Adam(float tapren, float b1, float b2
 }
 
 void RedNeuronalSecuencial::aplicarVectorGradienteAdam(float tapren, float b1, float b2, float epsilon, int batch_size) {
-	float factor = -1.0 / (float) batch_size;
+	float factor = 1.0 / (float) batch_size;
 
 	float** host_device_bias_vectors = device_bias_vectors->getPunteroPunteroHostDevice();
 	float** host_device_weight_matrices = device_weight_matrices->getPunteroPunteroHostDevice();
@@ -730,10 +734,10 @@ void RedNeuronalSecuencial::aplicarVectorGradienteAdam(float tapren, float b1, f
 	float** host_device_bias_error_matrices = device_err_bias_vgrad->getPunteroPunteroHostDevice();
 	float** host_device_weight_error_matrices = device_err_weight_vgrad->getPunteroPunteroHostDevice();
 
-	float** host_device_bias_m = device_forward_al->getPunteroPunteroHostDevice();
-	float** host_device_weight_m = device_err_weight_vgrad->getPunteroPunteroHostDevice();
-	float** host_device_bias_v = device_forward_al->getPunteroPunteroHostDevice();
-	float** host_device_weight_v = device_err_weight_vgrad->getPunteroPunteroHostDevice();
+	float** host_device_bias_m = device_err_bias_m->getPunteroPunteroHostDevice();
+	float** host_device_weight_m = device_err_weight_m->getPunteroPunteroHostDevice();
+	float** host_device_bias_v = device_err_bias_v->getPunteroPunteroHostDevice();
+	float** host_device_weight_v = device_err_weight_v->getPunteroPunteroHostDevice();
 
 	for (int i = 0; i < numero_capas - 1; i++) {
 
@@ -741,11 +745,11 @@ void RedNeuronalSecuencial::aplicarVectorGradienteAdam(float tapren, float b1, f
 
 		dim3 dimension = dim3Ceil(batch_size / (float)32, dimensiones_capas[i + 1] / (float)32);
 
-		multiplicarCadaElementoMatriz << < dimension, dim3(32, 32) >> > (host_device_al[i], factor, batch_size, dimensiones_capas[i + 1]);
-
 		sumarACadaElementoVectorColumnaMatriz << < dimension, dim3(32, 32) >> > (host_device_al[i], host_device_bias_error_matrices[i], batch_size, dimensiones_capas[i + 1]);
 
 		int nbloques = ((int)ceil(dimensiones_capas[i + 1] / (float)1024));
+
+		multiplicarCadaElementoMatriz << < nbloques, 1024 >> > (host_device_bias_error_matrices[i], factor, 1, dimensiones_capas[i + 1]);
 
 		actualizarValoresMatrizMomentoAdam << < nbloques, 1024 >> > (host_device_bias_error_matrices[i], host_device_bias_m[i], b1, 1, dimensiones_capas[i + 1]);
 		actualizarValoresMatrizVelocidadAdam << < nbloques, 1024 >> > (host_device_bias_error_matrices[i], host_device_bias_v[i], b2, 1, dimensiones_capas[i + 1]);

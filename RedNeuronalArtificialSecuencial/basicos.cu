@@ -139,7 +139,7 @@ __global__ void aplicarFuncionPReluCadaElementoMatriz(float* zl, float* al, int 
     int idy = blockIdx.y * blockDim.y + threadIdx.y;
 
     if (idx < nrows && idy < ncols) {
-        al[idx * ncols + idy] = zl[idx * ncols + idy] >= 0 ? zl[idx * ncols + idy] : zl[idx * ncols + idy]*0.01;
+        al[idx * ncols + idy] = fmaxf( 0.01*zl[idx * ncols + idy], zl[idx * ncols + idy]);
     }
 }
 
@@ -208,7 +208,8 @@ __global__ void aplicarDerivadaFuncionPReluCadaElementoMatriz(float* m, int nrow
     int idy = blockIdx.y * blockDim.y + threadIdx.y;
 
     if (idx < nrows && idy < ncols) {
-        m[idx * ncols + idy] = m[idx * ncols + idy] >= 0 ? 1 : 0.01;
+        if (m[idx * ncols + idy] < 0) { m[idx * ncols + idy] = 0.01; }
+        else{ m[idx * ncols + idy] = 1; }
     }
 }
 //T(idata) = odata
@@ -334,7 +335,7 @@ __global__ void actualizarValoresMatrizVelocidadAdam(const float* grad, float* m
 
     if (idx < nrows && idy < ncols) {
         //if (mdst[idx * ncols + idy] != 0) { printf("\nvelocidad distinto de 0"); }
-        if (mdst[idx * ncols + idy] < 0) { mdst[idx * ncols + idy] = 0.0; }
+        //if (mdst[idx * ncols + idy] < 0) { mdst[idx * ncols + idy] = -mdst[idx * ncols + idy]; }
         mdst[idx * ncols + idy] = b2 * mdst[idx * ncols + idy] + (1 - b2) * (grad[idx * ncols + idy] * grad[idx * ncols + idy]);
         //if (isnan(mdst[idx * ncols + idy]) || isinf(mdst[idx * ncols + idy])) { printf("\ncaca..."); }
     }
@@ -348,7 +349,7 @@ __global__ void calcularVectorGradienteAdam(float tapren, float b1, float b2, fl
     if (idx < nrows && idy < ncols) {
         float t1 = tapren * (mom[idx * ncols + idy] / (1 - b1));
         float t2 = epsilon + sqrtf(vel[idx * ncols + idy] / (float) (1 - b2));
-        mdst[idx * ncols + idy] = t1 / t2;
+        mdst[idx * ncols + idy] = -t1 / t2;
     }
 }
 
@@ -357,8 +358,10 @@ __global__ void ponerTodosElementosVectorCero(float* v, int nelems)
     int idx = blockIdx.x * blockDim.x + threadIdx.x;
 
     if (idx < nelems) {
-        //v[nelems] = 0.0;
-        //printf("\n %f", v[nelems]);
-        if (v[nelems] != 0.0) { printf("\nEHHMM HOLA???"); }
+        v[nelems] = 0.0;
+        if (v[nelems] < 0) { 
+            printf("\npero como puede ser posible tal tonteria??");
+            v[nelems] = -v[nelems]; 
+        }
     }
 }

@@ -51,8 +51,8 @@ int main()
 
     const int nentradas = 2;
     const int nsalidas = 1;
-    float tapren = 0.001;
-    int nepochs = 80000;
+    float tapren = 0.0005;
+    int nepochs = 10000;
 
     RedNeuronalSecuencial* r = new RedNeuronalSecuencial(4, new int[4] { nentradas, 10, 10, nsalidas }, new int[3] { 3, 3, 3 });
 
@@ -62,8 +62,9 @@ int main()
     float* de = new float[nentradas * nejemplos] { 0, 0, 0, 1, 1, 0, 1, 1 };
     float* ds = new float[nsalidas * nejemplos] { 0, 1, 1, 0 };
 
+    r->entrenarRedMSE_Adam(tapren, 0.9, 0.999, 0.000000001, 500, nepochs, nejemplos, batch_size, nentradas, nsalidas, de, ds);
+    //tapren = 0.0001;
     //r->entrenarRedMSE_SGD(tapren, 100, nepochs, nejemplos, batch_size, nentradas, nsalidas, de, ds);
-    r->entrenarRedMSE_Adam(tapren, 0.9, 0.99, 0.000000001, 500, nepochs, nejemplos, batch_size, nentradas, nsalidas, de, ds);
 
     float* res = r->propagacionHaciaDelante(4, nentradas, de);
     imprimirMatrizPorPantalla("", res, 4, nsalidas);
