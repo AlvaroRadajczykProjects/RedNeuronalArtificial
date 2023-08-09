@@ -3,7 +3,7 @@
 //para el producto de matrices utilizando cublas
 cublasHandle_t handle;
 const float alpha = 1.0f; //aparte del producto entre los elementos, puedes multiplicar esto
-const float beta = 0.0f; //aparte del producto final, puedes sumar esto
+const float betamio = 0.0f; //aparte del producto final, puedes sumar esto
 
 void imprimirVectorIntPorPantalla(char* texto_mostrar, float vector[], int inicio, int fin) {
 	printf("\n%s [ ", texto_mostrar);
@@ -48,7 +48,7 @@ const void aplicarDerivadaFuncion(int id, float* m, int nfilas, int ncolumnas) {
 }
 
 const void productoMatricesDevice(const float* a, const float* b, float* c, int m, int k, int n) {
-	cublasSgemm(handle, CUBLAS_OP_N, CUBLAS_OP_N, n, m, k, &alpha, b, n, a, k, &beta, c, n);
+	cublasSgemm(handle, CUBLAS_OP_N, CUBLAS_OP_N, n, m, k, &alpha, b, n, a, k, &betamio, c, n);
 	//cublasSgemm(handle, CUBLAS_OP_N, CUBLAS_OP_N, M, N, P, &alpha, d_B, P, d_A, N, &beta, d_C, P);
 	/*productoMatrices << < dim3Ceil((p + 32 - 1) / (float)32, (m + 32 - 1) / (float)32), dim3(32, 32) >> > (a, b, c, m, n, p);
 	cudaDeviceSynchronize();*/
@@ -56,7 +56,7 @@ const void productoMatricesDevice(const float* a, const float* b, float* c, int 
 
 //T(idata) = odata
 const void matrizTraspuestaDevice(float* odata, float* idata, int m, int n) {
-	cublasSgeam(handle, CUBLAS_OP_T, CUBLAS_OP_N, m, n, &alpha, idata, n, &beta, idata, m, odata, m);
+	cublasSgeam(handle, CUBLAS_OP_T, CUBLAS_OP_N, m, n, &alpha, idata, n, &betamio, idata, m, odata, m);
 	/*int dimension = (int)vmax(m, n);
 	matrizTraspuesta << < dim3Ceil(dimension / (float)32, dimension / (float)32), dim3(32, 32) >> > (odata, idata, m, n);*/
 	//cudaDeviceSynchronize();
@@ -98,6 +98,19 @@ const void applyTahnFunction(const int tm, float* dst) {
 	for (int i = 0; i < tm; i++) {
 		dst[i] = tanh(dst[i]);
 	}
+}
+
+const void applyPReluFunction(const int tm, float* dst) {
+	for (int i = 0; i < tm; i++) {
+		if (dst[i] < 0) { dst[i] = dst[i] * 0.01; }
+		//else { dst[i] = dst[i]; }
+	}
+}
+
+const void aplicarFuncionHost(int id, const int tm, float* dst) {
+	if (id == 0) { applyFastSigmoidFunction(tm, dst); }
+	else if (id == 1) { applyTahnFunction(tm, dst); }
+	else if (id == 2) { applyPReluFunction(tm, dst); }
 }
 
 RedNeuronalSecuencial::RedNeuronalSecuencial(int nc, int* dc, int* fc) {
@@ -867,21 +880,23 @@ void RedNeuronalSecuencial::iniciarModoPropagacionDelanteRapido() {
 	int may = 0;
 	for (int i = 1; i < numero_capas; i++) { may = max(may, dimensiones_capas[i]); }
 	calc_matrix_fast = new float[may];
+	calc_matrix_fast2 = new float[may];
 }
 
-const void RedNeuronalSecuencial::propagacionDelanteRapido(const float* input, float* output) {
+const void RedNeuronalSecuencial::propagacionDelanteRapido(const float* input, float* output, int idfun) {
 	computeGold(input, host_weight_matrices_fast[0], calc_matrix_fast, 1, dimensiones_capas[0], dimensiones_capas[1]);
 	sumarVectores(dimensiones_capas[1], calc_matrix_fast, host_bias_vectors_fast[0]);
-	applyTahnFunction(dimensiones_capas[1], calc_matrix_fast);
+	aplicarFuncionHost(idfun, dimensiones_capas[1], calc_matrix_fast);
 	for (int i = 1; i < numero_capas - 2; i++) {
-		computeGold(calc_matrix_fast, host_weight_matrices_fast[i], calc_matrix_fast, 1, dimensiones_capas[i], dimensiones_capas[i + 1]);
+		computeGold(calc_matrix_fast, host_weight_matrices_fast[i], calc_matrix_fast2, 1, dimensiones_capas[i], dimensiones_capas[i + 1]);
+		memcpy(calc_matrix_fast, calc_matrix_fast2, dimensiones_capas[i + 1]*sizeof(float));
 		sumarVectores(dimensiones_capas[i + 1], calc_matrix_fast, host_bias_vectors_fast[i]);
-		applyTahnFunction(dimensiones_capas[i + 1], calc_matrix_fast);
+		aplicarFuncionHost(idfun, dimensiones_capas[i + 1], calc_matrix_fast);
 	}
-	computeGold(calc_matrix_fast, host_weight_matrices_fast[numero_capas - 2], calc_matrix_fast, 1, dimensiones_capas[numero_capas - 2], dimensiones_capas[numero_capas - 1]);
-	sumarVectores(dimensiones_capas[numero_capas - 1], calc_matrix_fast, host_bias_vectors_fast[numero_capas - 2]);
-	memcpy(output, calc_matrix_fast, dimensiones_capas[numero_capas - 1] * sizeof(float));
-	applyTahnFunction(dimensiones_capas[numero_capas - 1], output);
+	computeGold(calc_matrix_fast, host_weight_matrices_fast[numero_capas - 2], calc_matrix_fast2, 1, dimensiones_capas[numero_capas - 2], dimensiones_capas[numero_capas - 1]);
+	sumarVectores(dimensiones_capas[numero_capas - 1], calc_matrix_fast2, host_bias_vectors_fast[numero_capas - 2]);
+	memcpy(output, calc_matrix_fast2, dimensiones_capas[numero_capas - 1] * sizeof(float));
+	aplicarFuncionHost(idfun, dimensiones_capas[numero_capas - 1], output);
 }
 
 void RedNeuronalSecuencial::terminarModoPropagacionDelanteRapido() {
@@ -937,4 +952,12 @@ void RedNeuronalSecuencial::mostrarZlAl(int batch_size) {
 		free(h_p);
 		h_p = NULL;
 	}
+}
+
+void RedNeuronalSecuencial::iniciarCublas() {
+	cublasCreate(&handle);
+}
+
+void RedNeuronalSecuencial::terminarCublas() {
+	cublasDestroy(handle);
 }

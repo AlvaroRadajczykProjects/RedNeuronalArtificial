@@ -62,6 +62,7 @@ class RedNeuronalSecuencial {
 		float** host_bias_vectors_fast;
 		float** host_weight_matrices_fast;
 		float* calc_matrix_fast;
+		float* calc_matrix_fast2;
 
 		int* getCopiaDimensionesCapasRed();
 		int* getCopiaDimensionesMatricesRed();
@@ -95,8 +96,11 @@ class RedNeuronalSecuencial {
 		void entrenarRedMSE_Adam(float tapren, float b1, float b2, float epsilon, int mostrar_fcoste_cada_n_epocas, int nepocas, int nejemplos, int batch_size, int nvalsentrada, int nvalsalida, float* ventrada, float* vsalida);
 
 		void iniciarModoPropagacionDelanteRapido();
-		const void propagacionDelanteRapido(const float* input, float* output);
+		const void propagacionDelanteRapido(const float* input, float* output, int idfun);
 		void terminarModoPropagacionDelanteRapido();
+
+		void iniciarCublas();
+		void terminarCublas();
 
 		void mostrarPesosBiasesRed();
 		void mostrarZlAl(int batch_size);
